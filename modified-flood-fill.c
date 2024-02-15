@@ -2,19 +2,20 @@
 #include <stdlib.h>
 #include <windows.h>
 #include <limits.h>
+#include <math.h>
 #include "API.h"
 
 int x=0, y=0, turnR=0;
 int dx[4] = {0, 1, 0, -1}, dy[4] = {1, 0, -1, 0};
 char buffer[50];
-int flood[16][16] = {};
-char walls[16][16][4];
+unsigned char flood[16][16] = {0};
+unsigned char walls[16][16] = {0};
 
 // A structure to represent a queue
 struct Queue {
-	int front, rear, size;
-	unsigned capacity;
-	int* array;
+    int front, rear, size;
+    unsigned capacity;
+    unsigned char* array;
 };
 
 // function to create a queue
@@ -22,70 +23,70 @@ struct Queue {
 // It initializes size of queue as 0
 struct Queue* createQueue(unsigned capacity)
 {
-	struct Queue* queue = (struct Queue*)malloc(
-		sizeof(struct Queue));
-	queue->capacity = capacity;
-	queue->front = queue->size = 0;
+    struct Queue* queue = (struct Queue*)malloc(
+        sizeof(struct Queue));
+    queue->capacity = capacity;
+    queue->front = queue->size = 0;
 
-	// This is important, see the enqueue
-	queue->rear = capacity - 1;
-	queue->array = (int*)malloc(
-		queue->capacity * sizeof(int));
-	return queue;
+    // This is important, see the enqueue
+    queue->rear = capacity - 1;
+    queue->array = (unsigned char*)malloc(
+        queue->capacity * sizeof(unsigned char));
+    return queue;
 }
 
 // Queue is full when size becomes
 // equal to the capacity
 int isFull(struct Queue* queue)
 {
-	return (queue->size == queue->capacity);
+    return (queue->size == queue->capacity);
 }
 
 // Queue is empty when size is 0
 int isEmpty(struct Queue* queue)
 {
-	return (queue->size == 0);
+    return (queue->size == 0);
 }
 
 // Function to add an item to the queue.
 // It changes rear and size
-void enqueue(struct Queue* queue, int item)
+void enqueue(struct Queue* queue, unsigned char item)
 {
-	if (isFull(queue))
-		return;
-	queue->rear = (queue->rear + 1)
-				% queue->capacity;
-	queue->array[queue->rear] = item;
-	queue->size = queue->size + 1;
+    if (isFull(queue))
+        return;
+    queue->rear = (queue->rear + 1)
+        % queue->capacity;
+    queue->array[queue->rear] = item;
+    queue->size = queue->size + 1;
 }
 
 // Function to remove an item from queue.
 // It changes front and size
-int dequeue(struct Queue* queue)
+unsigned char dequeue(struct Queue* queue)
 {
-	if (isEmpty(queue))
-		return INT_MIN;
-	int item = queue->array[queue->front];
-	queue->front = (queue->front + 1)
-				% queue->capacity;
-	queue->size = queue->size - 1;
-	return item;
+    if (isEmpty(queue))
+        return UCHAR_MAX;
+    unsigned char item = queue->array[queue->front];
+    queue->front = (queue->front + 1)
+        % queue->capacity;
+    queue->size = queue->size - 1;
+    return item;
 }
 
 // Function to get front of queue
-int front(struct Queue* queue)
+unsigned char front(struct Queue* queue)
 {
-	if (isEmpty(queue))
-		return INT_MIN;
-	return queue->array[queue->front];
+    if (isEmpty(queue))
+        return UCHAR_MAX;
+    return queue->array[queue->front];
 }
 
 // Function to get rear of queue
-int rear(struct Queue* queue)
+unsigned char rear(struct Queue* queue)
 {
-	if (isEmpty(queue))
-		return INT_MIN;
-	return queue->array[queue->rear];
+    if (isEmpty(queue))
+        return UCHAR_MAX;
+    return queue->array[queue->rear];
 }
 
 //logi print
@@ -138,8 +139,6 @@ void right_handed(){
 //mark green if explored
 void markCell(char color){
     API_setColor(x, y, color);
-   /*sprintf(buffer, "%d", countWays());
-    API_setText(x, y, buffer);*/
 }
 
 //compare cells by distance to 7, 7
@@ -165,9 +164,9 @@ void floodToFinish(){
     struct Queue* q = createQueue(200);
     for(int i = 0; i < 16; i++)
         for(int j = 0; j < 16; j++)
-            flood[i][j] = -1;
+            flood[i][j] = 0;
 
-    flood[7][7] = 0; flood[7][8] = 0; flood[8][7] = 0; flood[8][8] = 0;
+    flood[7][7] = 1; flood[7][8] = 1; flood[8][7] = 1; flood[8][8] = 1;
     enqueue(q, 7); enqueue(q, 7); enqueue(q, 7); enqueue(q, 8); enqueue(q, 8); enqueue(q, 7); enqueue(q, 8); enqueue(q, 8);
     
     while(!isEmpty(q)){
@@ -176,7 +175,7 @@ void floodToFinish(){
 		API_setText(x, y, buffer);
         for(int i = 0; i < 4; i++){
 			nx = x + dx[i]; ny = y + dy[i];
-			if(0 <= nx && nx < 16 && 0 <= ny && ny < 16 && flood[nx][ny] == -1 && walls[x][y][i] != 1){
+			if(0 <= nx && nx < 16 && 0 <= ny && ny < 16 && flood[nx][ny] == 0 && !(walls[x][y] & (1 << i))){
 				flood[nx][ny] = flood[x][y] + 1;
 				enqueue(q, nx); enqueue(q, ny);
 			}
@@ -189,9 +188,9 @@ void floodToStart(){
     struct Queue* q = createQueue(100);
     for(int i = 0; i < 16; i++)
         for(int j = 0; j < 16; j++)
-            flood[i][j] = -1;
+            flood[i][j] = 0;
 
-    flood[0][0] = 0; enqueue(q, 0); enqueue(q, 0);
+    flood[0][0] = 1; enqueue(q, 0); enqueue(q, 0);
     
     while(!isEmpty(q)){
         x = dequeue(q); y = dequeue(q);
@@ -199,7 +198,7 @@ void floodToStart(){
 		API_setText(x, y, buffer);
         for(int i = 0; i < 4; i++){
 			nx = x + dx[i]; ny = y + dy[i];
-			if(0 <= nx && nx < 16 && 0 <= ny && ny < 16 && flood[nx][ny] == -1 && walls[x][y][i] != 1){
+			if(0 <= nx && nx < 16 && 0 <= ny && ny < 16 && flood[nx][ny] == 0 && !(walls[x][y] & (1 << i))){
 				flood[nx][ny] = flood[x][y] + 1;
 				enqueue(q, nx); enqueue(q, ny);
 			}
@@ -211,21 +210,21 @@ void storeWalls(){
     char wx, wy;
     if(API_wallFront()){
         wx = x + dx[turnR]; wy = y + dy[turnR];
-        walls[x][y][turnR] = 1;
+        walls[x][y] |= (1 << turnR);
         if(!(wx & 0xf0 || wy & 0xf0))
-            walls[wx][wy][(turnR+2)%4] = 1;
+            walls[wx][wy] |= (1 << ((turnR+2)%4));
     }
     if(API_wallRight()){
         wx = x + dx[(turnR+1)%4]; wy = y + dy[(turnR+1)%4];
-        walls[x][y][(turnR+1)%4] = 1;
+        walls[x][y] |= (1 << ((turnR+1)%4));
         if(!(wx & 0xf0 || wy & 0xf0))
-            walls[wx][wy][(turnR+3)%4] = 1;
+            walls[wx][wy] |= (1 << ((turnR+3)%4));
     }
     if(API_wallLeft()){
         wx = x + dx[(turnR+3)%4]; wy = y + dy[(turnR+3)%4];
-        walls[x][y][(turnR+3)%4] = 1;
+        walls[x][y] |= (1 << ((turnR+3)%4));
         if(!(wx & 0xf0 || wy & 0xf0))
-            walls[wx][wy][(turnR+1)%4] = 1;
+            walls[wx][wy] |= (1 << ((turnR+1)%4));
     }
 }
 
@@ -233,13 +232,14 @@ int main(int argc, char* argv[]){
 
     for (int i=0; i<3; i++){
         logWall(i+1);
+        //floodToFinish();
         while (!isFinish()) {
             storeWalls();
-            floodToFinish();
             if(countWays() < 2){
                 left_handed();
             }
             else{
+                floodToFinish();
                 if(flood[x+dx[turnR]][y+dy[turnR]] < flood[x][y] && !API_wallFront());
                 else if(flood[x+dx[(turnR+1)%4]][y+dy[(turnR+1)%4]] < flood[x][y] && !API_wallRight()){
                     API_turnRight();
@@ -257,11 +257,11 @@ int main(int argc, char* argv[]){
         storeWalls();
         while(!isStart()){
             storeWalls();
-            floodToStart();
             if(countWays() < 2){
                 left_handed();
             }
             else{
+                floodToStart();
                 if(flood[x+dx[turnR]][y+dy[turnR]] < flood[x][y] && !API_wallFront());
                 else if(flood[x+dx[(turnR+1)%4]][y+dy[(turnR+1)%4]] < flood[x][y] && !API_wallRight()){
                     API_turnRight();
