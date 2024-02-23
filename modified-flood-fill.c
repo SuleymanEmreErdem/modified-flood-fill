@@ -5,11 +5,10 @@
 #include <math.h>
 #include "API.h"
 
-int x=0, y=0, turnR=0;
-int dx[4] = {0, 1, 0, -1}, dy[4] = {1, 0, -1, 0};
-char buffer[50];
-unsigned char flood[16][16] = {0};
-unsigned char walls[16][16] = {0};
+#define INF 0
+#define N 16
+char buffer[20];
+int dx[] = {0, 1, 0, -1}, dy[] = {1, 0, -1, 0};
 
 // A structure to represent a queue
 struct Queue {
@@ -106,65 +105,54 @@ int countWays(){
 }
 
 //move and change position as x, y
-void move(){
+void move(int* x, int* y, int turnR){
     API_moveForward();
-    x += dx[turnR];
-    y += dy[turnR];
+    *x += dx[turnR];
+    *y += dy[turnR];
 }
 
 //left-handed turn
-void left_handed(){
+void left_handed(int* turnR){
     if (!API_wallLeft()) {
         API_turnLeft();
-        turnR = (turnR + 3) % 4;
+        *turnR = (*turnR + 3) % 4;
     }
-    while (API_wallFront()){ //|| redMap[x+dx[turnR]][y+dy[turnR]]) {
+    while (API_wallFront()){
         API_turnRight();
-        turnR = (turnR + 1) % 4;
+        *turnR = (*turnR + 1) % 4;
     }
 }
 
-//right-handed turn
-void right_handed(){
-    if(!API_wallRight()){
-        API_turnRight;
-        turnR = (turnR + 1) % 4;
-    }
-    while (API_wallFront()){ //|| redMap[x+dx[turnR]][y+dy[turnR]]){
-        API_turnLeft();
-        turnR = (turnR + 3) % 4;
-    }
-}
-
-//mark green if explored
-void markCell(char color){
+//mark green if visited
+void markCell(char color, int x, int y){
     API_setColor(x, y, color);
 }
-
+/*
 //compare cells by distance to 7, 7
-int getCost(int turn){
+int getCost(int turn, int turnR){
     return abs((x + dx[(turnR + turn) % 4]) - 7) + abs((y + dy[(turnR + turn) % 4]) - 7);
 }
-
+*/
 
 //return 1 if entered in finish grid
-int isFinish(){
+int isFinish(int x, int y){
     if((x==7 && y==7) || (x==7 && y==8) || (x==8 && y==7) || (x==8 && y==8)) return 1;
     return 0;
 }
 
-int isStart(){
+//return 1 if if the location is starting cell
+int isStart(int x, int y){
     if(x==0 && y==0) return 1;
     return 0;
 }
 
-//flood the grid considering walls
-void floodToFinish(){
+//flood the grid to finish considering wall data
+void floodToFinish(unsigned char flood[N][N], unsigned char walls[N][N]){
     int x, y, nx, ny;
-    struct Queue* q = createQueue(200);
+    struct Queue* q = createQueue(100);
     for(int i = 0; i < 16; i++)
         for(int j = 0; j < 16; j++)
-            flood[i][j] = 0;
+            flood[i][j] = INF;
 
     flood[7][7] = 1; flood[7][8] = 1; flood[8][7] = 1; flood[8][8] = 1;
     enqueue(q, 7); enqueue(q, 7); enqueue(q, 7); enqueue(q, 8); enqueue(q, 8); enqueue(q, 7); enqueue(q, 8); enqueue(q, 8);
@@ -175,20 +163,23 @@ void floodToFinish(){
 		API_setText(x, y, buffer);
         for(int i = 0; i < 4; i++){
 			nx = x + dx[i]; ny = y + dy[i];
-			if(0 <= nx && nx < 16 && 0 <= ny && ny < 16 && flood[nx][ny] == 0 && !(walls[x][y] & (1 << i))){
+			if(0 <= nx && nx < 16 && 0 <= ny && ny < 16 && flood[nx][ny] == INF && !(walls[x][y] & (1 << i))){
 				flood[nx][ny] = flood[x][y] + 1;
 				enqueue(q, nx); enqueue(q, ny);
 			}
 		}
     }
+    free(q->array);
+    free(q);
 }
 
-void floodToStart(){
+//flood the grid to start considering wall data
+void floodToStart(unsigned char flood[N][N], unsigned char walls[N][N]){
     int x, y, nx, ny;
     struct Queue* q = createQueue(100);
     for(int i = 0; i < 16; i++)
         for(int j = 0; j < 16; j++)
-            flood[i][j] = 0;
+            flood[i][j] = INF;
 
     flood[0][0] = 1; enqueue(q, 0); enqueue(q, 0);
     
@@ -198,15 +189,18 @@ void floodToStart(){
 		API_setText(x, y, buffer);
         for(int i = 0; i < 4; i++){
 			nx = x + dx[i]; ny = y + dy[i];
-			if(0 <= nx && nx < 16 && 0 <= ny && ny < 16 && flood[nx][ny] == 0 && !(walls[x][y] & (1 << i))){
+			if(0 <= nx && nx < 16 && 0 <= ny && ny < 16 && flood[nx][ny] == INF && !(walls[x][y] & (1 << i))){
 				flood[nx][ny] = flood[x][y] + 1;
 				enqueue(q, nx); enqueue(q, ny);
 			}
 		}
     }
+    free(q->array);
+    free(q);
 }
 
-void storeWalls(){
+//store explored wall data
+void storeWalls(int x, int y, int turnR, unsigned char walls[N][N]){
     char wx, wy;
     if(API_wallFront()){
         wx = x + dx[turnR]; wy = y + dy[turnR];
@@ -230,16 +224,19 @@ void storeWalls(){
 
 int main(int argc, char* argv[]){
 
+    int x=0, y=0, turnR=0;
+    unsigned char flood[16][16] = {0};
+    unsigned char walls[16][16] = {0};
+
     for (int i=0; i<3; i++){
         logWall(i+1);
-        //floodToFinish();
-        while (!isFinish()) {
-            storeWalls();
+        while (!isFinish(x, y)) {
+            storeWalls(x, y, turnR, walls);
             if(countWays() < 2){
-                left_handed();
+                left_handed(&turnR);
             }
             else{
-                floodToFinish();
+                floodToFinish(flood, walls);
                 if(flood[x+dx[turnR]][y+dy[turnR]] < flood[x][y] && !API_wallFront());
                 else if(flood[x+dx[(turnR+1)%4]][y+dy[(turnR+1)%4]] < flood[x][y] && !API_wallRight()){
                     API_turnRight();
@@ -249,19 +246,19 @@ int main(int argc, char* argv[]){
                     API_turnLeft();
                     turnR = (turnR+3) % 4;
                 }
-                else left_handed();
+                else left_handed(&turnR);
             }
-            markCell('G');
-            move();
+            markCell('G', x, y);
+            move(&x, &y, turnR);
         }
-        storeWalls();
-        while(!isStart()){
-            storeWalls();
+        storeWalls(x, y, turnR, walls);
+        while(!isStart(x, y)){
+            storeWalls(x, y, turnR, walls);
             if(countWays() < 2){
-                left_handed();
+                left_handed(&turnR);
             }
             else{
-                floodToStart();
+                floodToStart(flood, walls);
                 if(flood[x+dx[turnR]][y+dy[turnR]] < flood[x][y] && !API_wallFront());
                 else if(flood[x+dx[(turnR+1)%4]][y+dy[(turnR+1)%4]] < flood[x][y] && !API_wallRight()){
                     API_turnRight();
@@ -271,20 +268,20 @@ int main(int argc, char* argv[]){
                     API_turnLeft();
                     turnR = (turnR+3) % 4;
                 }
-                else left_handed();
+                else left_handed(&turnR);
             }
-            markCell('G');
-            move();
+            markCell('G', x, y);
+            move(&x, &y, turnR);
         }
-        storeWalls();
+        storeWalls(x, y, turnR, walls);
     }
 
     Sleep(5000);
     logit("Run on optimised path...");
-    floodToFinish();
-    while(!isFinish()){
+    floodToFinish(flood, walls);
+    while(!isFinish(x, y)){
         if(countWays() < 2){
-            left_handed();
+            left_handed(&turnR);
         }
         else{
             if(flood[x+dx[turnR]][y+dy[turnR]] < flood[x][y] && !API_wallFront());
@@ -296,10 +293,10 @@ int main(int argc, char* argv[]){
                 API_turnLeft();
                 turnR = (turnR+3) % 4;
             }
-            else left_handed();
+            else left_handed(&turnR);
         }
-        markCell('R');
-        move();
+        markCell('R', x, y);
+        move(&x, &y, turnR);
     }
 
     return 0;
